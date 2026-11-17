@@ -363,10 +363,22 @@ function updDelBtn(){ $('delAllBtn').textContent = filter === 'ALL' ? '🗑️ E
 // ---------- import CSV / PDF ----------
 let impRows = [];
 // Riconosce SOLO: username, scadenza, nota rivenditore. Tutto il resto viene ignorato.
-const H = { note:/nota|note|notes|rivendit|reseller|comment/i, expiry:/scad|expir|exp\b|exp[ ._-]?date|fine|end|valid|ablauf/i, name:/user|utente|nome|name|login|account|cliente/i };
+// Riconosce SOLO: Username, Data di scadenza, Nota del rivenditore. Le colonne hanno una priorità (la prima che trova vince).
+const H = {
+  name:   [/^\s*user\s*name\s*$|^\s*username\s*$|^\s*user\s*$/i, /user/i, /utente|login|account/i, /^\s*(nome|name|cliente)\s*$/i],
+  expiry: [/scad|expir|exp\.?\s*date|exp_date|^\s*exp\s*$|ablauf|export/i, /fine|end\s*date|valid|until|bis/i],
+  note:   [/(rivendit|reseller).*(not|comment)|(not|comment).*(rivendit|reseller)/i, /nota|note|notes|comment/i, /rivendit|reseller/i]
+};
+const MESI = {gen:1,jan:1,feb:2,mar:3,apr:4,mag:5,may:5,mai:5,giu:6,jun:6,lug:7,jul:7,ago:8,aug:8,set:9,sep:9,ott:10,oct:10,okt:10,nov:11,dic:12,dec:12,dez:12};
 function parseDate(t){ t = String(t||'').trim(); let m;
+  if (/^\d{10}(\.\d+)?$/.test(t)) return new Date(+t * 1000).toISOString().slice(0,10);            // timestamp Unix (secondi)
+  if (/^\d{13}$/.test(t)) return new Date(+t).toISOString().slice(0,10);                            // timestamp in millisecondi
   if ((m = t.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/))) return iso(new Date(+m[1], m[2]-1, +m[3]));
-  if ((m = t.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})/))) { const y = m[3].length === 2 ? 2000 + +m[3] : +m[3]; return iso(new Date(y, m[2]-1, +m[1])); }
+  if ((m = t.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})/))) { const y = m[3].length === 2 ? 2000 + +m[3] : +m[3];
+    let d = +m[1], mo = +m[2]; if (mo > 12 && d <= 12) [d, mo] = [mo, d];     // formato americano mm/gg/aaaa
+    return iso(new Date(y, mo-1, d)); }
+  if ((m = t.match(/^(\d{1,2})\.?\s+([a-zà-ü]{3})[a-zà-ü]*\.?,?\s+(\d{4})/i)) && MESI[m[2].toLowerCase()]) return iso(new Date(+m[3], MESI[m[2].toLowerCase()]-1, +m[1]));
+  if ((m = t.match(/^([a-z]{3})[a-z]*\.?\s+(\d{1,2}),?\s+(\d{4})/i)) && MESI[m[1].toLowerCase()]) return iso(new Date(+m[3], MESI[m[1].toLowerCase()]-1, +m[2]));
   return null; }
 function parseMonths(t){ t = String(t||'').toLowerCase().trim(); if (!t) return null;
   if (/ann|year|jahr|12/.test(t)) return 12; if (/sei|six|\b6\b|semes/.test(t)) return 6;
@@ -375,18 +387,21 @@ const parseServer = t => SERVERS.find(s => String(t||'').toUpperCase().includes(
 function splitLine(l, d){ const out = []; let cur = '', q = false;
   for (const ch of l) { if (ch === '"') q = !q; else if (ch === d && !q) { out.push(cur.trim()); cur = ''; } else cur += ch; }
   out.push(cur.trim()); return out; }
+function findCol(head, key){ for (const re of H[key]) { const i = head.findIndex(h => re.test(h)); if (i >= 0) return i; } return -1; }
 function rowsFromTable(lines){
   lines = lines.filter(l => l.join('').trim());
   if (!lines.length) return [];
-  let hi = lines.findIndex((l, i) => i < 10 && l.some(h => H.name.test(h)) && l.some(h => H.expiry.test(h)));
+  const hi = lines.findIndex((l, i) => i < 15 && findCol(l, 'name') >= 0 && findCol(l, 'expiry') >= 0);
   if (hi < 0) return lines.map(guessRow).filter(r => r.name);
-  const map = {}; lines[hi].forEach((h, i) => { for (const k in H) if (map[k] === undefined && H[k].test(h)) { map[k] = i; break; } });
-  const ni = lines[hi].findIndex(h => /nota|note|comment/i.test(h)); if (ni >= 0) map.note = ni; // "Reseller Notes" vince su "Reseller"
-  const g = (c, k) => map[k] !== undefined ? String(c[map[k]] || '').trim() : '';
-  return lines.slice(hi + 1).map(c => ({ name: g(c,'name'), expiry: parseDate(g(c,'expiry')), note: g(c,'note') })).filter(r => r.name && !H.name.test(r.name));
+  const head = lines[hi], ci = { name: findCol(head,'name'), expiry: findCol(head,'expiry') };
+  const ni = findCol(head, 'note'); ci.note = ni !== ci.name && ni !== ci.expiry ? ni : -1;
+  const g = (c, k) => ci[k] >= 0 ? String(c[ci[k]] || '').trim() : '';
+  return lines.slice(hi + 1).map(c => ({ name: g(c,'name'), expiry: parseDate(g(c,'expiry')), rawExp: g(c,'expiry'), note: g(c,'note') }))
+    .filter(r => r.name && findCol([r.name], 'name') < 0);
 }
-function guessRow(c){ const r = { name:'', note:'', expiry:null }; const rest = [];
-  c.forEach(x => { x = (x||'').trim(); if (!x) return; const d = parseDate(x); if (d) r.expiry = d; else rest.push(x); });
+function guessRow(c){ const r = { name:'', note:'', expiry:null }; const rest = [], dates = [];
+  c.forEach(x => { x = (x||'').trim(); if (!x) return; const d = parseDate(x); if (d) dates.push(d); else rest.push(x); });
+  if (dates.length) r.expiry = dates.sort().pop();   // se ci sono più date, la scadenza è la più lontana
   r.name = rest.shift() || ''; r.note = rest.join(' '); return r; }
 function parseCSV(text){ const ls = text.replace(/^﻿/, '').split(/\r?\n/).filter(l => l.trim());
   const d = [';', '\t', ','].sort((a,b) => (ls[0].split(b).length) - (ls[0].split(a).length))[0];
@@ -410,13 +425,19 @@ $('impFile').onchange = async e => { const f = e.target.files[0]; e.target.value
 $('impServer').onchange = $('impMonths').onchange = () => renderImp();
 function finalize(r){ const months = Number($('impMonths').value); let expiry = r.expiry, start;
   if (expiry) start = addMonths(expiry, -months); else { start = iso(today()); expiry = addMonths(start, months); }
-  return { server: $('impServer').value, name: r.name, contact: '', note: r.note || '', months, start, expiry, noExp: !r.expiry }; }
-function renderImp(){ $('impPrev').innerHTML = impRows.map(finalize).map(u => { const dup = users.some(x => x.server === u.server && x.name.toLowerCase() === u.name.toLowerCase());
-  return `<div class="ev" style="${dup ? 'opacity:.45' : ''}"><b>${esc(u.name)}</b> · <span style="color:var(--${u.server})">${u.server}</span> · scade ${fmt(u.expiry)}${u.noExp ? ' <i>(senza data: calcolata da oggi)</i>' : ''}${u.note ? '<br><small style="color:var(--mut)">📝 ' + esc(u.note) + '</small>' : ''}${dup ? ' · <i>già presente</i>' : ''}</div>`; }).join(''); }
-function confirmImport(){ let n = 0, sk = 0;
-  impRows.map(finalize).forEach(u => { if (users.some(x => x.server === u.server && x.name.toLowerCase() === u.name.toLowerCase())) { sk++; return; }
-    const { noExp, ...v } = u; users.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2,6), ...v }); n++; });
-  save(); render(); impDlg.close(); alert(`✅ Importati ${n} clienti${sk ? ` (${sk} già presenti saltati)` : ''}.`); checkDue(); }
+  return { server: $('impServer').value, name: r.name, note: r.note || '', months, start, expiry, noExp: !r.expiry, rawExp: r.rawExp }; }
+const findDup = u => users.find(x => x.server === u.server && x.name.toLowerCase() === u.name.toLowerCase());
+function renderImp(){ $('impPrev').innerHTML = impRows.map(finalize).map(u => { const d = findDup(u);
+  return `<div class="ev"><b>${esc(u.name)}</b> · <span style="color:var(--${u.server})">${u.server}</span> · scade <b>${fmt(u.expiry)}</b>`
+    + (u.noExp ? ` <i style="color:var(--warn)">(data non trovata${u.rawExp ? ': "' + esc(u.rawExp) + '"' : ''} → calcolata da oggi)</i>` : '')
+    + (d ? (d.expiry !== u.expiry ? ` · <i style="color:var(--warn)">aggiorna da ${fmt(d.expiry)}</i>` : ' · <i>già uguale</i>') : ' · <i style="color:#6ff0b0">nuovo</i>')
+    + (u.note ? `<br><small style="color:var(--mut)">📝 ${esc(u.note)}</small>` : '') + `</div>`; }).join(''); }
+function confirmImport(){ let n = 0, up = 0;
+  impRows.map(finalize).forEach(u => { const { noExp, rawExp, ...v } = u; const d = findDup(v);
+    if (d) { if (d.expiry !== v.expiry || (v.note && d.note !== v.note)) { if (!noExp) { d.expiry = v.expiry; d.start = v.start; d.months = v.months; }
+        if (v.note) d.note = v.note; Object.keys(notified).forEach(k => k.startsWith(d.id + '|') && delete notified[k]); up++; } return; }
+    users.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2,6), contact: '', ...v }); n++; });
+  save(); render(); impDlg.close(); alert(`✅ ${n} nuovi clienti, ${up} aggiornati con le date del file.`); checkDue(); }
 function downloadTemplate(){ download(new Blob(['﻿server;nome;contatto;durata;inizio;scadenza;note\nVESUVEX;Mario Rossi;+49 151 1234567;1 mese;17/11/2026;;\nPRIVO;Luca Bianchi;@luca;3 mesi;01/11/2026;;pagato\nTORO;Anna Verdi;;annuale;;15/03/2027;\n'], { type: 'text/csv' }), 'modello-clienti.csv'); }
 
 // ---------- avvio ----------

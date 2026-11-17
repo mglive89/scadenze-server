@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1220">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon.svg">
+<title>Scadenze Server</title>
+<style>
+:root{--bg:#0f1220;--card:#181c30;--card2:#20253d;--txt:#eef0f8;--mut:#8b91ab;--line:#2a3050;
+--VESUVEX:#ff5a3c;--PRIVO:#3c9dff;--TORO:#2fd38a;--warn:#ffb020;--bad:#ff4d6d}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;font-family:-apple-system,system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt);padding-bottom:90px}
+header{position:sticky;top:0;z-index:5;background:rgba(15,18,32,.95);backdrop-filter:blur(8px);padding:calc(env(safe-area-inset-top) + 12px) 16px 10px;border-bottom:1px solid var(--line)}
+h1{margin:0;font-size:20px;display:flex;align-items:center;gap:8px}
+h1 small{font-size:12px;color:var(--mut);font-weight:400;margin-left:auto}
+.tabs{display:flex;gap:6px;margin-top:10px;overflow-x:auto}
+.tab{flex:1;padding:9px 10px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--txt);font-weight:600;font-size:13px;white-space:nowrap}
+.tab.on{background:var(--txt);color:var(--bg)}
+.tab[data-s=VESUVEX].on{background:var(--VESUVEX);color:#fff;border-color:var(--VESUVEX)}
+.tab[data-s=PRIVO].on{background:var(--PRIVO);color:#fff;border-color:var(--PRIVO)}
+.tab[data-s=TORO].on{background:var(--TORO);color:#06281a;border-color:var(--TORO)}
+main{padding:14px 16px;max-width:900px;margin:auto}
+.banner{background:#3a2a0a;border:1px solid var(--warn);color:#ffd88a;padding:10px 12px;border-radius:12px;margin-bottom:12px;font-size:14px;display:none}
+.banner button{margin-left:6px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.stat{background:var(--card);border-radius:14px;padding:12px;border-left:4px solid var(--c)}
+.stat b{font-size:22px;display:block}.stat span{font-size:12px;color:var(--mut)}
+.stat .al{font-size:12px;color:var(--warn);margin-top:2px}
+.server{background:var(--card);border-radius:16px;margin-bottom:16px;overflow:hidden;border-top:4px solid var(--c)}
+.shead{display:flex;align-items:center;gap:8px;padding:12px 14px}
+.shead h2{margin:0;font-size:17px;color:var(--c)}
+.shead .cnt{color:var(--mut);font-size:13px}
+.shead .sp{flex:1}
+.btn{border:0;border-radius:10px;padding:8px 12px;font-weight:600;font-size:13px;background:var(--card2);color:var(--txt);cursor:pointer}
+.btn.pri{background:var(--c,#5865f2);color:#fff}
+.btn.sm{padding:6px 9px;font-size:12px}
+.btn.red{background:#3a1520;color:#ff8da0}
+.btn.grn{background:#123826;color:#6ff0b0}
+.u{display:flex;align-items:center;gap:10px;padding:11px 14px;border-top:1px solid var(--line)}
+.u .info{flex:1;min-width:0}
+.u .n{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.u .d{font-size:12px;color:var(--mut);margin-top:2px}
+.pill{font-size:11px;font-weight:700;padding:3px 8px;border-radius:20px;background:var(--card2);white-space:nowrap}
+.pill.ok{color:#6ff0b0}.pill.soon{background:#3a2a0a;color:var(--warn)}.pill.exp{background:#3a1520;color:var(--bad)}
+.acts{display:flex;gap:5px}
+.empty{padding:16px 14px;color:var(--mut);font-size:14px;border-top:1px solid var(--line)}
+.cal{padding:4px 14px 14px;border-top:1px solid var(--line)}
+.calh{display:flex;align-items:center;justify-content:space-between;margin:10px 0}
+.calh b{text-transform:capitalize}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.grid .dn{font-size:11px;color:var(--mut);text-align:center}
+.day{aspect-ratio:1;background:var(--card2);border-radius:8px;font-size:12px;padding:3px;position:relative;cursor:pointer}
+.day.o{opacity:.25}.day.t{outline:2px solid var(--txt)}
+.day.has{background:var(--c);color:#fff;font-weight:700}
+.day .k{position:absolute;bottom:2px;right:4px;font-size:10px}
+.fab{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom));width:58px;height:58px;border-radius:50%;border:0;background:#5865f2;color:#fff;font-size:30px;box-shadow:0 6px 20px rgba(0,0,0,.5);z-index:6}
+.toolbar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+dialog{border:0;border-radius:18px;background:var(--card);color:var(--txt);width:min(94vw,440px);padding:18px}
+dialog::backdrop{background:rgba(0,0,0,.6)}
+dialog h3{margin:0 0 12px}
+label{display:block;font-size:12px;color:var(--mut);margin:10px 0 4px}
+input,select,textarea{width:100%;padding:11px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--txt);font-size:16px;font-family:inherit}
+.row{display:flex;gap:8px}.row>*{flex:1}
+.per{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.per button{padding:10px 0;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--txt);font-weight:600}
+.per button.on{background:#5865f2;border-color:#5865f2}
+.dfoot{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+#alarm{position:fixed;inset:0;background:rgba(120,0,20,.92);z-index:50;display:none;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;animation:pulse 1s infinite}
+#alarm h2{font-size:28px;margin:0 0 10px}
+#alarm ul{list-style:none;padding:0;font-size:17px;max-height:45vh;overflow:auto}
+#alarm li{background:rgba(0,0,0,.3);padding:10px 14px;border-radius:12px;margin:6px 0}
+#alarm button{font-size:18px;padding:14px 26px;border-radius:14px;border:0;background:#fff;color:#900;font-weight:800;margin-top:10px}
+@keyframes pulse{50%{background:rgba(200,20,40,.95)}}
+.ev{font-size:13px;padding:6px 0;border-bottom:1px solid var(--line)}
+</style>
+</head>
+<body>
+<header>
+  <h1>🗄️ Scadenze Server <small id="oggi"></small></h1>
+  <div class="tabs" id="tabs">
+    <button class="tab on" data-s="ALL">Tutti</button>
+    <button class="tab" data-s="VESUVEX">VESUVEX</button>
+    <button class="tab" data-s="PRIVO">PRIVO</button>
+    <button class="tab" data-s="TORO">TORO</button>
+  </div>
+</header>
+
+<main>
+  <div class="banner" id="notifBanner">🔔 Attiva le notifiche per ricevere il promemoria 1 giorno prima.
+    <button class="btn sm" onclick="askNotif()">Attiva</button></div>
+  <div class="stats" id="stats"></div>
+  <div class="toolbar">
+    <input id="q" placeholder="🔍 Cerca cliente…" style="flex:1;min-width:150px">
+    <button class="btn" onclick="testAlarm()">🔊 Prova allarme</button>
+    <button class="btn" onclick="exportJSON()">💾 Backup</button>
+    <button class="btn" onclick="document.getElementById('imp').click()">📂 Ripristina</button>
+    <input type="file" id="imp" accept=".json" hidden>
+  </div>
+  <div id="list"></div>
+</main>
+
+<button class="fab" onclick="openForm()">+</button>
+
+<dialog id="dlg">
+  <form method="dialog" id="frm">
+    <h3 id="ftitle">Nuovo cliente</h3>
+    <label>Server</label>
+    <select id="fServer"><option>VESUVEX</option><option>PRIVO</option><option>TORO</option></select>
+    <label>Nome cliente</label>
+    <input id="fName" required placeholder="Es. Mario Rossi">
+    <label>Contatto (telefono / Telegram / email)</label>
+    <input id="fContact" placeholder="Opzionale">
+    <label>Durata rinnovo</label>
+    <div class="per" id="fPer">
+      <button type="button" data-m="1">1 mese</button><button type="button" data-m="3">3 mesi</button>
+      <button type="button" data-m="6">6 mesi</button><button type="button" data-m="12">Annuale</button>
+    </div>
+    <div class="row">
+      <div><label>Data inizio</label><input type="date" id="fStart" required></div>
+      <div><label>Scadenza</label><input type="date" id="fExp" readonly></div>
+    </div>
+    <label>Note</label>
+    <textarea id="fNote" rows="2" placeholder="Prezzo, pacchetto, ecc."></textarea>
+    <div class="dfoot">
+      <button type="button" class="btn red" id="fDel" style="margin-right:auto;display:none">Elimina</button>
+      <button type="button" class="btn" onclick="dlg.close()">Annulla</button>
+      <button type="submit" class="btn pri" style="--c:#5865f2">Salva</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dayDlg"><h3 id="dayTitle"></h3><div id="dayBody"></div>
+  <div class="dfoot"><button class="btn" onclick="dayDlg.close()">Chiudi</button></div></dialog>
+
+<div id="alarm">
+  <h2>⏰ RINNOVI IN SCADENZA</h2>
+  <div>Devi rinnovare a questi clienti:</div>
+  <ul id="alarmList"></ul>
+  <button onclick="stopAlarm()">✔ HO CAPITO — FERMA ALLARME</button>
+</div>
+
+<script>
+const SERVERS = ['VESUVEX','PRIVO','TORO'];
+const PER = {1:'1 mese',3:'3 mesi',6:'6 mesi',12:'Annuale'};
+let users = JSON.parse(localStorage.getItem('users') || '[]');
+let notified = JSON.parse(localStorage.getItem('notified') || '{}');
+let filter = 'ALL', editId = null, selPer = 1;
+const calMonth = {}; SERVERS.forEach(s => calMonth[s] = new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+
+// ---------- date utils ----------
+const iso = d => { const z = new Date(d.getTime() - d.getTimezoneOffset()*60000); return z.toISOString().slice(0,10); };
+const parse = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d); };
+const fmt = s => s.split('-').reverse().join('/');
+function addMonths(s, m){ const d = parse(s); const day = d.getDate(); d.setMonth(d.getMonth()+Number(m));
+  if (d.getDate() !== day) d.setDate(0); return iso(d); }
+const today = () => { const d = new Date(); d.setHours(0,0,0,0); return d; };
+const daysLeft = s => Math.round((parse(s) - today()) / 864e5);
+
+// ---------- storage ----------
+function save(){
+  localStorage.setItem('users', JSON.stringify(users));
+  localStorage.setItem('notified', JSON.stringify(notified));
+  // copia in IndexedDB per il controllo in background del service worker
+  const r = indexedDB.open('scadenze', 1);
+  r.onupgradeneeded = () => r.result.createObjectStore('kv');
+  r.onsuccess = () => r.result.transaction('kv','readwrite').objectStore('kv').put(users, 'users');
+}
+
+// ---------- render ----------
+function status(u){ const n = daysLeft(u.expiry);
+  if (n < 0) return ['exp', `Scaduto da ${-n} g`];
+  if (n === 0) return ['exp', 'Scade OGGI'];
+  if (n === 1) return ['soon', 'Scade DOMANI'];
+  if (n <= 7) return ['soon', `${n} giorni`];
+  return ['ok', `${n} giorni`]; }
+
+function render(){
+  document.getElementById('oggi').textContent = new Date().toLocaleDateString('it-IT',{weekday:'short',day:'numeric',month:'short'});
+  // stats
+  document.getElementById('stats').innerHTML = SERVERS.map(s => {
+    const us = users.filter(u => u.server === s);
+    const al = us.filter(u => daysLeft(u.expiry) <= 1).length;
+    return `<div class="stat" style="--c:var(--${s})"><span>${s}</span><b>${us.length}</b>
+      <div class="al">${al ? '⚠️ '+al+' da rinnovare' : '&nbsp;'}</div></div>`;
+  }).join('');
+  const q = document.getElementById('q').value.trim().toLowerCase();
+  const show = filter === 'ALL' ? SERVERS : [filter];
+  document.getElementById('list').innerHTML = show.map(s => {
+    const us = users.filter(u => u.server === s && (!q || (u.name+' '+(u.contact||'')+' '+(u.note||'')).toLowerCase().includes(q)))
+                    .sort((a,b) => a.expiry.localeCompare(b.expiry));
+    const rows = us.length ? us.map(u => { const [cls, txt] = status(u);
+      return `<div class="u"><div class="info"><div class="n">${esc(u.name)}</div>
+        <div class="d">${PER[u.months]} · scade ${fmt(u.expiry)}${u.contact ? ' · '+esc(u.contact) : ''}</div></div>
+        <span class="pill ${cls}">${txt}</span>
+        <div class="acts"><button class="btn sm grn" onclick="renew('${u.id}')" title="Rinnova">↻</button>
+        <button class="btn sm" onclick="openForm('${u.id}')" title="Modifica">✎</button></div></div>`; }).join('')
+      : `<div class="empty">Nessun cliente su ${s}. Premi “+ Aggiungi”.</div>`;
+    return `<section class="server" style="--c:var(--${s})">
+      <div class="shead"><h2>${s}</h2><span class="cnt">${users.filter(u=>u.server===s).length} utenti</span><span class="sp"></span>
+        <button class="btn sm" onclick="exportICS('${s}')" title="Aggiungi al calendario del telefono">📅 .ics</button>
+        <button class="btn sm pri" onclick="openForm(null,'${s}')">+ Aggiungi</button></div>
+      ${rows}${calendar(s)}</section>`;
+  }).join('');
+}
+const esc = t => String(t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function calendar(s){
+  const m = calMonth[s], y = m.getFullYear(), mo = m.getMonth();
+  const first = new Date(y, mo, 1), start = new Date(first); start.setDate(1 - ((first.getDay()+6)%7));
+  const map = {}; users.filter(u => u.server === s).forEach(u => (map[u.expiry] = map[u.expiry] || []).push(u));
+  const t = iso(today());
+  let cells = ['L','M','M','G','V','S','D'].map(d => `<div class="dn">${d}</div>`).join('');
+  for (let i = 0; i < 42; i++){ const d = new Date(start); d.setDate(start.getDate()+i); const k = iso(d);
+    const n = (map[k]||[]).length;
+    cells += `<div class="day ${d.getMonth()!==mo?'o':''} ${k===t?'t':''} ${n?'has':''}" onclick="showDay('${s}','${k}')">${d.getDate()}${n?`<span class="k">${n}</span>`:''}</div>`; }
+  return `<div class="cal"><div class="calh"><button class="btn sm" onclick="mv('${s}',-1)">‹</button>
+    <b>📅 ${m.toLocaleDateString('it-IT',{month:'long',year:'numeric'})}</b><button class="btn sm" onclick="mv('${s}',1)">›</button></div>
+    <div class="grid">${cells}</div></div>`;
+}
+function mv(s, n){ calMonth[s] = new Date(calMonth[s].getFullYear(), calMonth[s].getMonth()+n, 1); render(); }
+function showDay(s, k){
+  const us = users.filter(u => u.server === s && u.expiry === k);
+  document.getElementById('dayTitle').textContent = `${s} — ${fmt(k)}`;
+  document.getElementById('dayBody').innerHTML = us.length ? us.map(u => `<div class="ev"><b>${esc(u.name)}</b> · ${PER[u.months]}
+    <button class="btn sm grn" style="float:right" onclick="renew('${u.id}');dayDlg.close()">↻ Rinnova</button></div>`).join('') : '<div class="ev">Nessuna scadenza.</div>';
+  dayDlg.showModal();
+}
+
+// ---------- form ----------
+const $ = id => document.getElementById(id);
+function setPer(m){ selPer = Number(m); document.querySelectorAll('#fPer button').forEach(b => b.classList.toggle('on', b.dataset.m == m)); calcExp(); }
+function calcExp(){ if ($('fStart').value) $('fExp').value = addMonths($('fStart').value, selPer); }
+document.querySelectorAll('#fPer button').forEach(b => b.onclick = () => setPer(b.dataset.m));
+$('fStart').oninput = calcExp;
+function openForm(id, server){
+  editId = id || null; const u = users.find(x => x.id === id);
+  $('ftitle').textContent = u ? 'Modifica cliente' : 'Nuovo cliente';
+  $('fServer').value = u ? u.server : (server || (filter !== 'ALL' ? filter : 'VESUVEX'));
+  $('fName').value = u ? u.name : ''; $('fContact').value = u ? (u.contact||'') : ''; $('fNote').value = u ? (u.note||'') : '';
+  $('fStart').value = u ? u.start : iso(today()); setPer(u ? u.months : 1);
+  $('fDel').style.display = u ? '' : 'none';
+  dlg.showModal();
+}
+$('frm').onsubmit = () => {
+  const data = { server: $('fServer').value, name: $('fName').value.trim(), contact: $('fContact').value.trim(),
+    note: $('fNote').value.trim(), months: selPer, start: $('fStart').value, expiry: addMonths($('fStart').value, selPer) };
+  if (!data.name || !data.start) return;
+  if (editId) Object.assign(users.find(u => u.id === editId), data);
+  else users.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2,6), ...data });
+  save(); render(); checkDue();
+};
+$('fDel').onclick = () => { if (confirm('Eliminare questo cliente?')) { users = users.filter(u => u.id !== editId); save(); render(); dlg.close(); } };
+function renew(id){
+  const u = users.find(x => x.id === id);
+  const base = daysLeft(u.expiry) < 0 && !confirm(`Scaduto il ${fmt(u.expiry)}.\nOK = rinnova dalla vecchia scadenza\nAnnulla = rinnova da oggi`) ? iso(today()) : u.expiry;
+  if (!confirm(`Rinnovare ${u.name} (${PER[u.months]})?\nNuova scadenza: ${fmt(addMonths(base, u.months))}`)) return;
+  u.start = base; u.expiry = addMonths(base, u.months); save(); render();
+}
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => { filter = t.dataset.s;
+  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === t)); render(); });
+$('q').oninput = render;
+
+// ---------- notifiche + allarme ----------
+let reg = null, actx = null, alarmTimer = null;
+async function askNotif(){
+  if (!('Notification' in window)) { alert('Su iPhone: aggiungi prima l’app alla schermata Home (Condividi → Aggiungi a Home), poi aprila da lì.'); return; }
+  const p = await Notification.requestPermission(); unlockAudio(); updBanner();
+  if (p === 'granted') { notify('✅ Notifiche attive', 'Ti avviserò 1 giorno prima di ogni scadenza.'); registerPeriodic(); }
+}
+function updBanner(){ $('notifBanner').style.display = (!('Notification' in window) || Notification.permission !== 'granted') ? 'block' : 'none'; }
+async function notify(title, body, tag){
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const opt = { body, icon: 'icon.svg', badge: 'icon.svg', vibrate: [400,200,400,200,800], requireInteraction: true, tag: tag || title, data: { url: './index.html?alarm=1' } };
+  try { (reg || await navigator.serviceWorker.ready).showNotification(title, opt); } catch { new Notification(title, opt); }
+}
+function unlockAudio(){ if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); }
+function beep(){
+  if (!actx) return; const t = actx.currentTime;
+  [0, .25, .5].forEach((o, i) => { const os = actx.createOscillator(), g = actx.createGain();
+    os.type = 'square'; os.frequency.value = i === 2 ? 1320 : 880; g.gain.setValueAtTime(.0001, t+o);
+    g.gain.exponentialRampToValueAtTime(.4, t+o+.02); g.gain.exponentialRampToValueAtTime(.0001, t+o+.2);
+    os.connect(g).connect(actx.destination); os.start(t+o); os.stop(t+o+.22); });
+  if (navigator.vibrate) navigator.vibrate([300,150,300,150,600]);
+}
+function startAlarm(list){
+  $('alarmList').innerHTML = list.map(u => `<li><b>${esc(u.name)}</b><br><small>${u.server} · scade ${fmt(u.expiry)} · ${PER[u.months]}</small></li>`).join('');
+  $('alarm').style.display = 'flex'; unlockAudio(); beep(); clearInterval(alarmTimer); alarmTimer = setInterval(beep, 1200);
+}
+function stopAlarm(){ clearInterval(alarmTimer); $('alarm').style.display = 'none';
+  dueList().forEach(u => notified[u.id + '|' + u.expiry] = 'ack'); save(); }
+function testAlarm(){ unlockAudio(); startAlarm([{ name: 'Cliente di prova', server: 'TEST', expiry: iso(new Date(Date.now()+864e5)), months: 1 }]); }
+const dueList = () => users.filter(u => daysLeft(u.expiry) <= 1);
+function checkDue(force){
+  const due = dueList(); if (!due.length) return;
+  const fresh = due.filter(u => !notified[u.id + '|' + u.expiry]);
+  fresh.forEach(u => { notify(`⏰ Rinnovo ${u.server}`, `${u.name} scade ${daysLeft(u.expiry) === 1 ? 'DOMANI' : 'il ' + fmt(u.expiry)} — rinnova al cliente!`, u.id + u.expiry);
+    notified[u.id + '|' + u.expiry] = 'sent'; });
+  save();
+  const pending = due.filter(u => notified[u.id + '|' + u.expiry] !== 'ack');
+  if (pending.length && (fresh.length || force)) startAlarm(pending);
+}
+async function registerPeriodic(){
+  try { const r = reg || await navigator.serviceWorker.ready;
+    if ('periodicSync' in r) await r.periodicSync.register('check-scadenze', { minInterval: 6*60*60*1000 }); } catch {}
+}
+
+// ---------- calendario telefono (.ics con allarme 1 giorno prima) ----------
+function exportICS(s){
+  const us = users.filter(u => u.server === s); if (!us.length) return alert('Nessun cliente su ' + s);
+  const now = new Date().toISOString().replace(/[-:]/g,'').split('.')[0] + 'Z';
+  const ev = us.map(u => { const d = u.expiry.replace(/-/g,''), e = addMonths(u.expiry, 0).replace(/-/g,'');
+    const nd = iso(new Date(parse(u.expiry).getTime() + 864e5)).replace(/-/g,'');
+    return ['BEGIN:VEVENT', `UID:${u.id}-${d}@scadenze`, `DTSTAMP:${now}`, `DTSTART;VALUE=DATE:${d}`, `DTEND;VALUE=DATE:${nd}`,
+      `SUMMARY:Rinnovo ${s}: ${u.name.replace(/[,;]/g,' ')}`, `DESCRIPTION:${PER[u.months]}${u.contact ? ' - ' + u.contact.replace(/[,;]/g,' ') : ''}`,
+      'BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:Domani scade ${u.name.replace(/[,;]/g,' ')} (${s})`, 'TRIGGER:-PT15H', 'END:VALARM', 'END:VEVENT'].join('\r\n'); });
+  const ics = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Scadenze Server//IT',`X-WR-CALNAME:Scadenze ${s}`, ...ev, 'END:VCALENDAR'].join('\r\n');
+  download(new Blob([ics], { type: 'text/calendar' }), `scadenze-${s}.ics`);
+}
+function exportJSON(){ download(new Blob([JSON.stringify(users, null, 2)], { type: 'application/json' }), `backup-scadenze-${iso(today())}.json`); }
+$('imp').onchange = e => { const f = e.target.files[0]; if (!f) return; f.text().then(t => { try { const d = JSON.parse(t);
+  if (!Array.isArray(d)) throw 0; if (confirm(`Ripristinare ${d.length} clienti? (sostituisce i dati attuali)`)) { users = d; save(); render(); } } catch { alert('File non valido'); } }); };
+function download(blob, name){ const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); }
+
+// ---------- avvio ----------
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').then(r => { reg = r; if (Notification?.permission === 'granted') registerPeriodic(); }).catch(() => {});
+  navigator.serviceWorker.addEventListener('message', e => { if (e.data?.type === 'alarm') checkDue(true); });
+}
+document.addEventListener('click', unlockAudio, { once: true });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { render(); checkDue(true); } });
+setInterval(() => { render(); checkDue(); }, 60000);
+save(); render(); updBanner();
+setTimeout(() => checkDue(new URLSearchParams(location.search).has('alarm') || true), 600);
+</script>
+</body>
+</html>

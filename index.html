@@ -113,8 +113,8 @@ input,select,textarea{width:100%;padding:11px;border-radius:10px;border:1px soli
     <h3 id="ftitle">Nuovo cliente</h3>
     <label>Server</label>
     <select id="fServer"><option>VESUVEX</option><option>PRIVO</option><option>TORO</option></select>
-    <label>Nome cliente</label>
-    <input id="fName" required placeholder="Es. Mario Rossi">
+    <label>Username</label>
+    <input id="fName" required placeholder="Es. mario88">
     <label>Contatto (telefono / Telegram / email)</label>
     <input id="fContact" placeholder="Opzionale">
     <label>Durata rinnovo</label>
@@ -126,7 +126,7 @@ input,select,textarea{width:100%;padding:11px;border-radius:10px;border:1px soli
       <div><label>Data inizio</label><input type="date" id="fStart" required></div>
       <div><label>Scadenza</label><input type="date" id="fExp" readonly></div>
     </div>
-    <label>Note</label>
+    <label>Nota rivenditore</label>
     <textarea id="fNote" rows="2" placeholder="Prezzo, pacchetto, ecc."></textarea>
     <div class="dfoot">
       <button type="button" class="btn red" id="fDel" style="margin-right:auto;display:none">Elimina</button>
@@ -142,9 +142,9 @@ input,select,textarea{width:100%;padding:11px;border-radius:10px;border:1px soli
 <dialog id="impDlg">
   <h3>📥 Importa clienti</h3>
   <div id="impInfo" style="font-size:13px;color:var(--mut)"></div>
-  <label>Server per le righe senza server</label>
+  <label>Server di questi clienti</label>
   <select id="impServer"><option>VESUVEX</option><option>PRIVO</option><option>TORO</option></select>
-  <label>Durata per le righe senza durata</label>
+  <label>Durata abbonamento</label>
   <select id="impMonths"><option value="1">1 mese</option><option value="3">3 mesi</option><option value="6">6 mesi</option><option value="12">Annuale</option></select>
   <div id="impPrev" style="max-height:40vh;overflow:auto;margin-top:12px;font-size:13px"></div>
   <div class="dfoot">
@@ -212,7 +212,7 @@ function render(){
                     .sort((a,b) => a.expiry.localeCompare(b.expiry));
     const rows = us.length ? us.map(u => { const [cls, txt] = status(u);
       return `<div class="u"><div class="info"><div class="n">${esc(u.name)}</div>
-        <div class="d">${PER[u.months]} · scade ${fmt(u.expiry)}${u.contact ? ' · '+esc(u.contact) : ''}</div></div>
+        <div class="d">${PER[u.months]} · scade ${fmt(u.expiry)}${u.contact ? ' · '+esc(u.contact) : ''}</div>${u.note ? `<div class="d">📝 ${esc(u.note)}</div>` : ''}</div>
         <span class="pill ${cls}">${txt}</span>
         <div class="acts"><button class="btn sm grn" onclick="renew('${u.id}')" title="Rinnova">↻</button>
         <button class="btn sm" onclick="openForm('${u.id}')" title="Modifica">✎</button></div></div>`; }).join('')
@@ -346,8 +346,8 @@ function download(blob, name){ const a = document.createElement('a'); a.href = U
 
 // ---------- import CSV / PDF ----------
 let impRows = [];
-const H = { server:/server|srv/i, name:/nome|name|cliente|user|utente|username/i, contact:/contatt|telefon|phone|tel\b|email|mail|telegram|whats/i,
-  months:/durata|periodo|mesi|piano|abbon|plan|rinnovo|tipo/i, start:/inizio|start|attiv|dal\b|acquist|data$/i, expiry:/scad|expir|fine|end|al\b|valid/i, note:/note|nota|prezzo|price|commenti/i };
+// Riconosce SOLO: username, scadenza, nota rivenditore. Tutto il resto viene ignorato.
+const H = { note:/nota|note|notes|rivendit|reseller|comment/i, expiry:/scad|expir|exp\b|exp[ ._-]?date|fine|end|valid|ablauf/i, name:/user|utente|nome|name|login|account|cliente/i };
 function parseDate(t){ t = String(t||'').trim(); let m;
   if ((m = t.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/))) return iso(new Date(+m[1], m[2]-1, +m[3]));
   if ((m = t.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})/))) { const y = m[3].length === 2 ? 2000 + +m[3] : +m[3]; return iso(new Date(y, m[2]-1, +m[1])); }
@@ -362,22 +362,16 @@ function splitLine(l, d){ const out = []; let cur = '', q = false;
 function rowsFromTable(lines){
   lines = lines.filter(l => l.join('').trim());
   if (!lines.length) return [];
-  const head = lines[0], map = {};
-  head.forEach((h, i) => { for (const k in H) if (map[k] === undefined && H[k].test(h)) { map[k] = i; break; } });
-  const hasHeader = map.name !== undefined || Object.keys(map).length >= 2;
-  return (hasHeader ? lines.slice(1) : lines).map(c => hasHeader ? fromMapped(c, map) : guessRow(c)).filter(r => r && r.name);
+  let hi = lines.findIndex((l, i) => i < 10 && l.some(h => H.name.test(h)) && l.some(h => H.expiry.test(h)));
+  if (hi < 0) return lines.map(guessRow).filter(r => r.name);
+  const map = {}; lines[hi].forEach((h, i) => { for (const k in H) if (map[k] === undefined && H[k].test(h)) { map[k] = i; break; } });
+  const ni = lines[hi].findIndex(h => /nota|note|comment/i.test(h)); if (ni >= 0) map.note = ni; // "Reseller Notes" vince su "Reseller"
+  const g = (c, k) => map[k] !== undefined ? String(c[map[k]] || '').trim() : '';
+  return lines.slice(hi + 1).map(c => ({ name: g(c,'name'), expiry: parseDate(g(c,'expiry')), note: g(c,'note') })).filter(r => r.name && !H.name.test(r.name));
 }
-function fromMapped(c, map){ const g = k => map[k] !== undefined ? c[map[k]] : '';
-  return { server: parseServer(g('server')), name: (g('name')||'').trim(), contact: (g('contact')||'').trim(), note: (g('note')||'').trim(),
-    months: parseMonths(g('months')), start: parseDate(g('start')), expiry: parseDate(g('expiry')) }; }
-function guessRow(c){ const r = { server:null, name:'', contact:'', note:'', months:null, start:null, expiry:null }; const dates = [], rest = [];
-  c.forEach(x => { x = (x||'').trim(); if (!x) return; const d = parseDate(x);
-    if (d) dates.push(d); else if (!r.server && parseServer(x) && x.length <= 12) r.server = parseServer(x);
-    else if (!r.months && parseMonths(x) && x.length <= 14) r.months = parseMonths(x);
-    else if (/@|^\+?\d[\d\s]{6,}$/.test(x)) r.contact = x; else rest.push(x); });
-  r.name = rest.shift() || ''; r.note = rest.join(' ');
-  if (dates.length === 1) r.expiry = dates[0]; else if (dates.length >= 2) { dates.sort(); r.start = dates[0]; r.expiry = dates[dates.length-1]; }
-  return r; }
+function guessRow(c){ const r = { name:'', note:'', expiry:null }; const rest = [];
+  c.forEach(x => { x = (x||'').trim(); if (!x) return; const d = parseDate(x); if (d) r.expiry = d; else rest.push(x); });
+  r.name = rest.shift() || ''; r.note = rest.join(' '); return r; }
 function parseCSV(text){ const ls = text.replace(/^﻿/, '').split(/\r?\n/).filter(l => l.trim());
   const d = [';', '\t', ','].sort((a,b) => (ls[0].split(b).length) - (ls[0].split(a).length))[0];
   return rowsFromTable(ls.map(l => splitLine(l, d))); }
@@ -398,14 +392,14 @@ $('impFile').onchange = async e => { const f = e.target.files[0]; e.target.value
   if (filter !== 'ALL') $('impServer').value = filter;
   $('impInfo').textContent = `${f.name}: trovati ${impRows.length} clienti. Controlla e premi Importa.`; renderImp(); impDlg.showModal(); };
 $('impServer').onchange = $('impMonths').onchange = () => renderImp();
-function finalize(r){ const months = r.months || Number($('impMonths').value); let start = r.start, expiry = r.expiry;
-  if (!start && expiry) start = addMonths(expiry, -months); if (!start) start = iso(today()); if (!expiry) expiry = addMonths(start, months);
-  return { server: r.server || $('impServer').value, name: r.name, contact: r.contact || '', note: r.note || '', months, start, expiry }; }
+function finalize(r){ const months = Number($('impMonths').value); let expiry = r.expiry, start;
+  if (expiry) start = addMonths(expiry, -months); else { start = iso(today()); expiry = addMonths(start, months); }
+  return { server: $('impServer').value, name: r.name, contact: '', note: r.note || '', months, start, expiry, noExp: !r.expiry }; }
 function renderImp(){ $('impPrev').innerHTML = impRows.map(finalize).map(u => { const dup = users.some(x => x.server === u.server && x.name.toLowerCase() === u.name.toLowerCase());
-  return `<div class="ev" style="${dup ? 'opacity:.45' : ''}"><b>${esc(u.name)}</b> · <span style="color:var(--${u.server})">${u.server}</span> · ${PER[u.months]} · scade ${fmt(u.expiry)}${dup ? ' · <i>già presente</i>' : ''}</div>`; }).join(''); }
+  return `<div class="ev" style="${dup ? 'opacity:.45' : ''}"><b>${esc(u.name)}</b> · <span style="color:var(--${u.server})">${u.server}</span> · scade ${fmt(u.expiry)}${u.noExp ? ' <i>(senza data: calcolata da oggi)</i>' : ''}${u.note ? '<br><small style="color:var(--mut)">📝 ' + esc(u.note) + '</small>' : ''}${dup ? ' · <i>già presente</i>' : ''}</div>`; }).join(''); }
 function confirmImport(){ let n = 0, sk = 0;
   impRows.map(finalize).forEach(u => { if (users.some(x => x.server === u.server && x.name.toLowerCase() === u.name.toLowerCase())) { sk++; return; }
-    users.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2,6), ...u }); n++; });
+    const { noExp, ...v } = u; users.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2,6), ...v }); n++; });
   save(); render(); impDlg.close(); alert(`✅ Importati ${n} clienti${sk ? ` (${sk} già presenti saltati)` : ''}.`); checkDue(); }
 function downloadTemplate(){ download(new Blob(['﻿server;nome;contatto;durata;inizio;scadenza;note\nVESUVEX;Mario Rossi;+49 151 1234567;1 mese;17/11/2026;;\nPRIVO;Luca Bianchi;@luca;3 mesi;01/11/2026;;pagato\nTORO;Anna Verdi;;annuale;;15/03/2027;\n'], { type: 'text/csv' }), 'modello-clienti.csv'); }
 
